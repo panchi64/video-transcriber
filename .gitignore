@@ -1,1 +1,11 @@
+# #Misc
 .idea/
+__pycache__/
+
+# Virtual environment
+.venv/
+.env/
+env/
+
+# Default output folder
+output/
