@@ -51,15 +51,14 @@ def extract_audio(video_path, output_path):
         raise
 
 
-def transcribe_audio(audio_path, output_path):
+def transcribe_audio(audio_path, output_path, model_name="large"):
     """
     Transcribe audio using OpenAI's Whisper model.
-    Uses the largest available model for best accuracy.
     """
     try:
-        # Load the largest model
-        logger.info("Loading Whisper model (large)...")
-        model = whisper.load_model("large")
+        # Load the specified model
+        logger.info(f"Loading Whisper model ({model_name})...")
+        model = whisper.load_model(model_name)
 
         logger.info("Starting transcription...")
         result = model.transcribe(str(audio_path))
@@ -81,6 +80,9 @@ def main():
     parser.add_argument('video_path', type=str, help='Path to the MKV video file')
     parser.add_argument('--output-dir', type=str, default='output',
                         help='Directory to save the output files (default: output)')
+    parser.add_argument('--model', type=str, default='large',
+                        choices=['tiny', 'base', 'small', 'medium', 'large', 'turbo'],
+                        help='Whisper model to use (default: large)')
 
     args = parser.parse_args()
     video_path = Path(args.video_path)
@@ -101,7 +103,7 @@ def main():
         audio_path = extract_audio(video_path, output_path)
 
         logger.info("Starting transcription process...")
-        transcript_path = transcribe_audio(audio_path, output_path)
+        transcript_path = transcribe_audio(audio_path, output_path, args.model)
 
         logger.info("Process completed successfully!")
         logger.info(f"Transcript saved to: {transcript_path}")
