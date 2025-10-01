@@ -3,6 +3,7 @@ import os
 import sys
 import subprocess
 import whisper
+import torch
 from pathlib import Path
 import argparse
 import logging
@@ -22,6 +23,20 @@ def check_ffmpeg():
         return True
     except FileNotFoundError:
         return False
+
+
+def get_device():
+    """Detect and return the best available device for Whisper."""
+    if torch.cuda.is_available():
+        device = "cuda"
+        logger.info("GPU (CUDA) detected - using GPU acceleration")
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        device = "mps"
+        logger.info("Apple Silicon (MPS) detected - using GPU acceleration")
+    else:
+        device = "cpu"
+        logger.info("No GPU detected - using CPU")
+    return device
 
 
 def extract_audio(video_path, output_path):
@@ -51,17 +66,24 @@ def extract_audio(video_path, output_path):
         raise
 
 
-def transcribe_audio(audio_path, output_path, model_name="large"):
+def transcribe_audio(audio_path, output_path, model_name="large", device="cpu"):
     """
     Transcribe audio using OpenAI's Whisper model.
     """
     try:
-        # Load the specified model
-        logger.info(f"Loading Whisper model ({model_name})...")
-        model = whisper.load_model(model_name)
+        # Load the specified model on the detected device
+        logger.info(f"Loading Whisper model ({model_name}) on {device}...")
+        model = whisper.load_model(model_name, device=device)
+
+        # Use fp16 for GPU acceleration (2x speedup with minimal quality loss)
+        use_fp16 = device != "cpu"
 
         logger.info("Starting transcription...")
-        result = model.transcribe(str(audio_path))
+        result = model.transcribe(
+            str(audio_path),
+            fp16=use_fp16,
+            verbose=True  # Show progress during transcription
+        )
 
         transcript_path = output_path / f"{audio_path.stem}_transcript.txt"
         with open(transcript_path, 'w', encoding='utf-8') as f:
@@ -98,12 +120,15 @@ def main():
         logger.error("ffmpeg is not installed. Please install ffmpeg first.")
         sys.exit(1)
 
+    # Detect best available device (CUDA/MPS/CPU)
+    device = get_device()
+
     try:
         logger.info("Extracting audio from video...")
         audio_path = extract_audio(video_path, output_path)
 
         logger.info("Starting transcription process...")
-        transcript_path = transcribe_audio(audio_path, output_path, args.model)
+        transcript_path = transcribe_audio(audio_path, output_path, args.model, device)
 
         logger.info("Process completed successfully!")
         logger.info(f"Transcript saved to: {transcript_path}")
